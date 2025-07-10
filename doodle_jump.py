@@ -119,8 +119,14 @@ class Game:
         self.enemies = []
         self.camera_y = 0
         self.score = 0
+        self.high_score = 0
+        self.platforms_hit = 0
+        self.enemies_avoided = 0
+        self.combo = 0
+        self.last_platform_time = 0
         self.game_over = False
         self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
         
         # Создаем начальные платформы
         for i in range(10):
@@ -156,9 +162,22 @@ class Game:
         self.player.update()
         
         # Проверяем коллизии с платформами
+        current_time = pygame.time.get_ticks()
         for platform in self.platforms:
             if platform.check_collision(self.player):
                 self.player.jump()
+                self.platforms_hit += 1
+                
+                # Система комбо
+                if current_time - self.last_platform_time < 1000:  # Комбо в течение 1 секунды
+                    self.combo += 1
+                    combo_bonus = self.combo * 5
+                    self.score += 10 + combo_bonus
+                else:
+                    self.combo = 1
+                    self.score += 10
+                
+                self.last_platform_time = current_time
                 break
                 
         # Проверяем коллизии с врагами
@@ -171,8 +190,12 @@ class Game:
         if self.player.y - self.camera_y < HEIGHT//2:
             self.camera_y = self.player.y - HEIGHT//2
             
-        # Обновляем счет
-        self.score = max(self.score, int(self.camera_y // 10))
+        # Обновляем счет на основе высоты
+        height_score = int(self.camera_y // 10)
+        self.score = max(self.score, height_score)
+        
+        # Обновляем рекорд
+        self.high_score = max(self.high_score, self.score)
         
         # Генерируем новые платформы и врагов
         self.generate_platforms()
@@ -181,6 +204,10 @@ class Game:
         # Проверяем падение
         if self.player.y - self.camera_y > HEIGHT + 50:
             self.game_over = True
+            
+        # Сброс комбо если прошло много времени
+        if current_time - self.last_platform_time > 2000:  # 2 секунды
+            self.combo = 0
             
     def draw(self):
         # Фон
@@ -197,16 +224,29 @@ class Game:
         # Рисуем игрока
         self.player.draw(screen, self.camera_y)
         
-        # Рисуем счет
+        # Рисуем счет и статистику
         score_text = self.font.render(f"Score: {self.score}", True, BLACK)
+        high_score_text = self.small_font.render(f"High Score: {self.high_score}", True, BLACK)
+        platforms_text = self.small_font.render(f"Platforms: {self.platforms_hit}", True, BLACK)
+        height_text = self.small_font.render(f"Height: {int(self.camera_y)}m", True, BLACK)
+        combo_text = self.small_font.render(f"Combo: x{self.combo}", True, YELLOW) if self.combo > 1 else None
+        
         screen.blit(score_text, (10, 10))
+        screen.blit(high_score_text, (10, 50))
+        screen.blit(platforms_text, (10, 75))
+        screen.blit(height_text, (10, 100))
+        if combo_text:
+            screen.blit(combo_text, (WIDTH - 120, 10))
         
         # Рисуем сообщение о конце игры
         if self.game_over:
             game_over_text = self.font.render("GAME OVER!", True, RED)
+            final_score_text = self.font.render(f"Final Score: {self.score}", True, BLACK)
             restart_text = self.font.render("Press R to restart", True, BLACK)
-            screen.blit(game_over_text, (WIDTH//2 - game_over_text.get_width()//2, HEIGHT//2 - 50))
-            screen.blit(restart_text, (WIDTH//2 - restart_text.get_width()//2, HEIGHT//2 + 10))
+            
+            screen.blit(game_over_text, (WIDTH//2 - game_over_text.get_width()//2, HEIGHT//2 - 80))
+            screen.blit(final_score_text, (WIDTH//2 - final_score_text.get_width()//2, HEIGHT//2 - 40))
+            screen.blit(restart_text, (WIDTH//2 - restart_text.get_width()//2, HEIGHT//2))
             
     def restart(self):
         self.__init__()
